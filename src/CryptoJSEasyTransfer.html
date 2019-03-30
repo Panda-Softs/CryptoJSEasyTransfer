@@ -6,10 +6,9 @@
     <title>CryptoJS Easy File Transfer v1.0a</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
 
-    <script src="https://code.jquery.com/jquery-3.3.1.min.js" integrity="sha256-FgpCb/KJQlLNfOu91ta32o/NMZxltwRo8QtmkMRdAu8=" crossorigin="anonymous"></script>
-    <script src="https://cdn.jsdelivr.net/npm/file-saver@2.0.1/dist/FileSaver.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/3.1.2/rollups/aes.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/3.1.2/rollups/pbkdf2.js"></script>
+    <script src="vendor/jquery-3.3.1.min.js"></script>
+    <script src="vendor/FileSaver.min.js"></script>
+    <script src="crypto.js"></script>
 
     <style>
         body {
@@ -31,153 +30,16 @@
 
     <h2>CryptoJS Easy File Transfer v1.0a</h2>
 
+    <p>Maximum allowed file size is 50Mb</p>
+
     <input id="password" type="password" />
     <input id="enc-input" type="file" style="display: none" />
     <button id="enc-button">ENCRYPT FILE</button>
     <button id="dec-button" style="display:none">DECRYPT FILE</button>
     <button id="new-button" style="display:none">NEW</button>
+    <div id="progress"></div>
     <div id="status"></div>
     <div id="data" style="display:none"></div>
-
-    <script type="text/javascript">     
-    //<![CDATA[
-
-    /* http://javascriptobfuscator.com/Javascript-Obfuscator.aspx
-       http://beautifytools.com/html-minifier.php */
-
-    function arrayBufferToBase64(buffer) {
-        var base64String = btoa(String.fromCharCode.apply(null, new Uint8Array(buffer)));
-        return base64String;
-    }
-
-    function base64ToArrayBuffer(base64) {
-        var rawData = Uint8Array.from(atob(base64), c => c.charCodeAt(0));
-        return rawData;
-    }
-
-    function exportArrayBuffer(arrayBuffer, filename) {
-        var blob = new Blob([arrayBuffer], { type: "application/octet-stream" });
-        saveAs(blob, filename);
-    }
-
-    function setFileContentSet(encrypted) {
-        $('#password').val('');
-        $('#enc-button').css('display', encrypted ? 'none' : 'inline-block');
-        $('#dec-button').css('display', encrypted ? 'inline-block' : 'none');
-        $('#new-button').css('display', encrypted ? 'inline-block' : 'none');
-    }
-    // Code goes here
-    var keySize = 512,
-    ivSize = 128,
-    iterations = 100,
-    separator = "$@@@@@$",
-    password = undefined,
-    errorMsg1 = "Error: Wrong encryption password !",
-    errorMsg2 = "Error : Encryption password cannot be empty !";
-
-    function encrypt(msg, pass) {
-        var salt = CryptoJS.lib.WordArray.random(128 / 8);
-        var key = CryptoJS.PBKDF2(pass, salt, {
-            keySize: keySize / 32,
-            iterations: iterations
-        });
-        var iv = CryptoJS.lib.WordArray.random(128 / 8);
-        var encrypted = CryptoJS.AES.encrypt(msg, key, {
-            iv: iv,
-            padding: CryptoJS.pad.Pkcs7,
-            mode: CryptoJS.mode.CBC
-        });
-        // salt, iv will be hex 32 in length
-        // append them to the ciphertext for use  in decryption
-        var transitmessage = salt.toString() + iv.toString() + encrypted.toString();
-        return transitmessage;
-    }
-
-    function decrypt(transitmessage, pass) {
-        try {
-            var salt = CryptoJS.enc.Hex.parse(transitmessage.substr(0, 32));
-            var iv = CryptoJS.enc.Hex.parse(transitmessage.substr(32, 32))
-            var encrypted = transitmessage.substring(64);
-            var key = CryptoJS.PBKDF2(pass, salt, {
-                keySize: keySize / 32,
-                iterations: iterations
-            });
-            var decrypted = CryptoJS.AES.decrypt(encrypted, key, {
-                iv: iv,
-                padding: CryptoJS.pad.Pkcs7,
-                mode: CryptoJS.mode.CBC
-            })
-            return decrypted.toString(CryptoJS.enc.Utf8);
-        } catch (err) {
-            return false;
-        }
-    }
-    $('#dec-button').click(function() {
-        var encrypted = $('#data').text();
-        var password = $('#password').val().trim();
-        if (password != '') {
-            var decrypted = decrypt(encrypted, password);
-            if (!decrypted) {
-                alert(errorMsg1);
-                $('#password').val('');
-                return;
-            }
-            var sdata = decrypted.split(separator);
-            if (sdata && sdata.length == 2) {
-                var filename = sdata[0];
-                var rawData = base64ToArrayBuffer(sdata[1]);
-                var fileLength = rawData.byteLength;
-                exportArrayBuffer(rawData, filename);
-                $('#password').val('');
-                $('#status').text('Decrypted file:' + filename + ' size:' + fileLength);
-                $('#new-button').css('display', 'inline-block');
-                $('#enc-input').val(null);
-            } else {
-                alert(errorMsg1);
-                $('#password').val('');
-            }
-        } else {
-            alert(errorMsg2);
-        }
-    });
-    $('#enc-button').click(function() {
-        password = $('#password').val().trim();
-        if (password != '') {
-            setTimeout(function() {
-                $("#enc-input").trigger('click');
-            }, 500);
-        } else {
-            alert(errorMsg2);
-        }
-    });
-    $('#enc-input').change(function() {
-        var file = this.files[0];
-        var filename = file.name;
-        var reader = new FileReader();
-        reader.onloadend = function(evt) {
-            if (evt.target.readyState == FileReader.DONE) {
-                var rawData = evt.target.result;
-                var fileLength = rawData.byteLength;
-                var base64String = arrayBufferToBase64(rawData);
-                var data = filename + separator + base64String;
-                var encrypted = encrypt(data, password);
-                $('#data').text(encrypted);
-                $('#status').text('Encrypted file:' + filename + ' size:' + fileLength);
-                setFileContentSet(true);
-                var html = document.documentElement.innerHTML;
-                var ms = new Date().getTime();
-                exportArrayBuffer(html, 'cryptojs_transfer_' + ms + '.html');
-            }
-        };
-        reader.readAsArrayBuffer(file);
-    });
-    $('#new-button').click(function() {
-        setFileContentSet(false);
-        $('#data').text('');
-        $('#status').text('');
-    });
-    //]]>
-    </script>
 
 </body>
 
